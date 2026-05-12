@@ -14,14 +14,19 @@ from agentic_rag_demo import (
     build_cache,
     RAGCache,
     Evaluator,
-    BatchEvaluator,
+    list_providers,
 )
+
+
+LLMProvider = Literal[
+    "openai", "opencode", "anthropic", "azure", "ollama", "groq", "together", "vllm"
+]
 
 
 @dataclass(frozen=True)
 class RuntimeConfig:
     use_openai: bool
-    provider: Literal["openai", "opencode"]
+    provider: LLMProvider
     api_mode: Literal["auto", "responses", "chat"]
     model: str | None
     api_key: str | None
@@ -31,11 +36,13 @@ class RuntimeConfig:
     use_cache: bool
     embedding_provider: str
     cache_type: Literal["lru", "ttl", "persistent"]
+    max_tokens: int
+    temperature: float
 
 
 def load_project_env() -> None:
     try:
-        from dotenv import load_dotenv  # type: ignore
+        from dotenv import load_dotenv
     except ImportError:
         return
     load_dotenv()
@@ -49,12 +56,15 @@ def _to_bool(value: str | None, default: bool = False) -> bool:
 
 def resolve_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
     env_provider = os.getenv("LLM_PROVIDER", "openai").lower()
-    provider = args.provider or ("opencode" if env_provider == "opencode" else "openai")
+    provider = args.provider or env_provider
 
     env_mode = os.getenv("LLM_API_MODE", "auto").lower()
     api_mode = args.api_mode or (env_mode if env_mode in {"auto", "responses", "chat"} else "auto")
 
     use_openai = True if args.openai else _to_bool(os.getenv("LLM_ENABLE"), default=False)
+
+    max_tokens = args.max_tokens or int(os.getenv("LLM_MAX_TOKENS", "2048"))
+    temperature = args.temperature or float(os.getenv("LLM_TEMPERATURE", "0.7"))
 
     return RuntimeConfig(
         use_openai=use_openai,
@@ -68,13 +78,15 @@ def resolve_runtime_config(args: argparse.Namespace) -> RuntimeConfig:
         use_cache=args.use_cache,
         embedding_provider=args.embedding_provider or "auto",
         cache_type=args.cache_type or "lru",
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
 
 
 def run_demo(
     use_openai: bool = False,
     model: str | None = None,
-    provider: Literal["openai", "opencode"] = "openai",
+    provider: LLMProvider = "openai",
     api_mode: Literal["auto", "responses", "chat"] = "auto",
     api_key: str | None = None,
     base_url: str | None = None,
@@ -83,6 +95,8 @@ def run_demo(
     use_cache: bool = False,
     embedding_provider: str = "auto",
     cache_type: Literal["lru", "ttl", "persistent"] = "lru",
+    max_tokens: int = 2048,
+    temperature: float = 0.7,
 ) -> None:
     kb_path = Path(__file__).parent / "data" / "knowledge_base.md"
 
@@ -94,9 +108,12 @@ def run_demo(
             api_mode=api_mode,
             api_key=api_key,
             base_url=base_url,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
+        print(f"[info] LLM: {llm.name}")
     except Exception as exc:
-        print(f"[warn] OpenAI 初始化失败，降级本地模式: {exc}")
+        print(f"[warn] LLM 初始化失败，降级本地模式: {exc}")
         llm = build_llm(use_openai=False)
         use_openai = False
 
@@ -149,6 +166,7 @@ def run_demo(
             print("  h - 帮助")
             print("  stats - 显示检索统计")
             print("  eval - 运行评估")
+            print("  models - 显示支持的模型")
             continue
         if question.lower() == "stats":
             stats = agent.get_retrieval_stats()
@@ -156,6 +174,12 @@ def run_demo(
             continue
         if question.lower() == "eval":
             run_evaluation(agent)
+            continue
+        if question.lower() == "models":
+            print("\n支持的 LLM Provider:")
+            for p, desc in list_providers().items():
+                print(f"  {p}: {desc}")
+            print()
             continue
         if not question:
             continue
@@ -226,22 +250,25 @@ def run_evaluation(agent: AgenticRAG) -> None:
 
 if __name__ == "__main__":
     load_project_env()
+
+    providers = list(list_providers().keys())
+
     parser = argparse.ArgumentParser(description="Agentic RAG Demo")
 
-    parser.add_argument("--openai", action="store_true", help="启用 OpenAI 兼容 API")
-    parser.add_argument("--provider", choices=["openai", "opencode"], default=None)
+    parser.add_argument("--openai", action="store_true", help="启用 LLM API")
+    parser.add_argument("--provider", choices=providers, default=None, help="LLM 提供商")
     parser.add_argument("--api-mode", choices=["auto", "responses", "chat"], default=None)
-    parser.add_argument("--model", default=None, help="模型 ID，例如 gpt-5.2 或 minimax-2.5")
-    parser.add_argument("--api-key", default=None, help="可选，直接传 API Key")
-    parser.add_argument("--base-url", default=None, help="可选，OpenAI 兼容网关地址")
+    parser.add_argument("--model", default=None, help="模型 ID")
+    parser.add_argument("--api-key", default=None, help="API Key")
+    parser.add_argument("--base-url", default=None, help="API 基础 URL")
+    parser.add_argument("--max-tokens", type=int, default=None, help="最大输出 tokens (默认 2048)")
+    parser.add_argument("--temperature", type=float, default=None, help="温度参数 (默认 0.7)")
 
     parser.add_argument("--reranker", action="store_true", help="启用 Reranker")
     parser.add_argument("--agent-loop", action="store_true", help="启用 Agent Loop")
     parser.add_argument("--cache", action="store_true", help="启用缓存")
     parser.add_argument("--cache-type", choices=["lru", "ttl", "persistent"], default="lru")
-    parser.add_argument(
-        "--embedding-provider", default="auto", help="Embedding 提供商: auto/openai/huggingface"
-    )
+    parser.add_argument("--embedding-provider", default="auto")
 
     args = parser.parse_args()
     config = resolve_runtime_config(args)
@@ -258,4 +285,6 @@ if __name__ == "__main__":
         use_cache=config.use_cache,
         embedding_provider=config.embedding_provider,
         cache_type=config.cache_type,
+        max_tokens=config.max_tokens,
+        temperature=config.temperature,
     )

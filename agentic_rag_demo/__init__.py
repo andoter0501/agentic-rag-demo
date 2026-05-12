@@ -39,7 +39,21 @@ from .evaluator import (
     create_test_cases_from_answers,
 )
 from .loader import Chunk, SemanticChunk, load_chunks, load_semantic_chunks
-from .llm import Evidence, LLM, LocalHeuristicLLM, OpenAICompatibleLLM, build_llm
+from .llm import (
+    Evidence,
+    LLM,
+    LocalHeuristicLLM,
+    OpenAICompatibleLLM,
+    AnthropicLLM,
+    AzureOpenAILLM,
+    OllamaLLM,
+    GroqLLM,
+    TogetherLLM,
+    VLLM,
+    build_llm,
+    list_providers,
+    SUPPORTED_PROVIDERS,
+)
 from .reranker import (
     CrossEncoderReranker,
     LLMCoherenceReranker,
@@ -102,6 +116,15 @@ __all__ = [
     "LLM",
     "LocalHeuristicLLM",
     "OpenAICompatibleLLM",
+    "AnthropicLLM",
+    "AzureOpenAILLM",
+    "OllamaLLM",
+    "GroqLLM",
+    "TogetherLLM",
+    "VLLM",
+    "build_llm",
+    "list_providers",
+    "SUPPORTED_PROVIDERS",
     "load_chunks",
     "load_semantic_chunks",
     "parse_document",
