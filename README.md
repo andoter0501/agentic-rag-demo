@@ -14,6 +14,7 @@
 | 评估框架 | Hit Rate / MRR / NDCG / 忠实性 |
 | 多级缓存 | LRU / TTL / Persistent 三种模式 |
 | 多 LLM 支持 | OpenAI / Claude / Ollama / Groq 等 |
+| 多解析器支持 | Native / LlamaIndex / LangChain / MinerU |
 
 ## 支持的 LLM 模型
 
@@ -27,6 +28,15 @@
 | `groq` | llama-3.1-70b, mixtral-8x7b | Groq 高速推理 |
 | `together` | meta-llama/Llama-3.2-70B | Together AI |
 | `vllm` | Qwen/Qwen2.5-7B | vLLM 本地部署 |
+
+## 支持的文档解析器
+
+| 解析器 | 说明 | 优势 |
+|--------|------|------|
+| `native` | 内置解析器 | 轻量、无依赖 |
+| `llamaindex` | LlamaIndex | 功能丰富、语义分块 |
+| `langchain` | LangChain | 生态完整、格式多样 |
+| `mineru` | MinerU | 优秀 PDF/文档解析 |
 
 ## 快速开始
 
@@ -261,6 +271,45 @@ from agentic_rag_demo import build_embedding_model
 
 embed = build_embedding_model(provider="openai", model_name="text-embedding-3-small")
 embed = build_embedding_model(provider="huggingface", model_name="BAAI/bge-small-zh-v1.5")
+```
+
+### 使用不同的文档解析器
+
+```python
+from agentic_rag_demo import build_parser, parse_document_with, list_parsers
+
+# 查看支持的解析器
+print(list_parsers())
+
+# 使用内置解析器 (默认)
+chunks = parse_document_with("data/report.pdf", parser_type="native")
+
+# 使用 LlamaIndex 解析器
+chunks = parse_document_with(
+    "data/report.pdf",
+    parser_type="llamaindex",
+    chunk_size=512,
+    chunk_overlap=50,
+)
+
+# 使用 MinerU 解析器 (优秀的 PDF 解析)
+chunks = parse_document_with(
+    "data/report.pdf",
+    parser_type="mineru",
+    parse_mode="hybrid",  # hybrid/ocr/txt
+    extract_tables=True,
+)
+
+# 使用 LangChain 解析器
+chunks = parse_document_with(
+    "data/report.docx",
+    parser_type="langchain",
+    chunk_size=500,
+)
+
+# 直接创建解析器
+parser = build_parser("mineru", parse_mode="ocr")
+documents = parser.parse("data/report.pdf")
 ```
 
 ### 批量评估
