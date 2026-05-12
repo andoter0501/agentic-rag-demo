@@ -321,3 +321,92 @@ evaluator = BatchEvaluator(Evaluator())
 results = evaluator.evaluate_batch(test_cases)
 evaluator.print_summary(results)
 ```
+
+## 统一配置管理
+
+### 使用 Settings 类
+
+```python
+from agentic_rag_demo import Settings, get_settings
+
+# 获取全局配置
+settings = get_settings()
+print(f"LLM: {settings.llm.provider}")
+print(f"Parser: {settings.parser.parser_type}")
+
+# 从环境变量加载
+settings = Settings.from_env()
+
+# 从 YAML 文件加载
+settings = Settings.from_yaml("config.yaml")
+
+# 从 JSON 文件加载
+settings = Settings.from_json("config.json")
+
+# 保存配置
+settings.to_yaml("my_config.yaml")
+```
+
+### 环境变量配置
+
+```bash
+# LLM 配置
+export LLM_PROVIDER=openai
+export LLM_MODEL=gpt-4o
+export LLM_API_KEY=sk-xxx
+export LLM_MAX_TOKENS=4096
+
+# Embedding 配置
+export EMBEDDING_PROVIDER=huggingface
+export EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
+
+# 解析器配置
+export PARSER_TYPE=mineru
+export PARSER_CHUNK_SIZE=512
+
+# 检索配置
+export RETRIEVAL_TOP_K=5
+export RETRIEVAL_RERANKER=true
+
+# Agent 配置
+export AGENT_USE_LOOP=true
+export AGENT_MAX_ITERATIONS=10
+
+# 缓存配置
+export CACHE_ENABLED=true
+export CACHE_TYPE=lru
+```
+
+### 配置文件模板
+
+```python
+from agentic_rag_demo import create_config_template
+
+# 创建配置模板
+create_config_template("config.yaml")
+```
+
+生成 `config.yaml`:
+
+```yaml
+project_name: Agentic RAG Demo
+version: 0.3.0
+llm:
+  provider: openai
+  model: gpt-4o
+  max_tokens: 2048
+embedding:
+  provider: auto
+parser:
+  parser_type: native
+  chunk_size: 280
+retrieval:
+  top_k: 5
+  enable_reranker: false
+agent:
+  max_iterations: 5
+  use_agent_loop: false
+cache:
+  enabled: false
+  cache_type: lru
+```

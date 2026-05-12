@@ -76,6 +76,25 @@ from .retriever import (
     SparseRetriever,
 )
 from .vector_index import VectorIndex
+from .config import (
+    Settings,
+    LLMConfig,
+    EmbeddingConfig,
+    ParserConfig,
+    RetrievalConfig,
+    AgentConfig,
+    CacheConfig,
+    EvaluatorConfig,
+    get_settings,
+    reload_settings,
+    create_config_template,
+    LLMProvider,
+    EmbeddingProvider,
+    ParserType,
+    FusionMethod,
+    CacheType,
+)
+from .cli import main
 
 
 __all__ = [
@@ -151,4 +170,15 @@ __all__ = [
     "parse_document_with",
     "list_parsers",
     "SUPPORTED_PARSERS",
+    "Settings",
+    "LLMConfig",
+    "EmbeddingConfig",
+    "ParserConfig",
+    "RetrievalConfig",
+    "AgentConfig",
+    "CacheConfig",
+    "EvaluatorConfig",
+    "get_settings",
+    "reload_settings",
+    "create_config_template",
 ]
