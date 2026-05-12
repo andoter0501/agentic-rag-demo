@@ -13,8 +13,9 @@
 | 语义分块 | 语义切分 / 递归切分 / 重叠切分 |
 | 评估框架 | Hit Rate / MRR / NDCG / 忠实性 |
 | 多级缓存 | LRU / TTL / Persistent 三种模式 |
-| 多 LLM 支持 | OpenAI / Claude / Ollama / Groq 等 |
+| 多 LLM 支持 | OpenAI / Claude / Ollama / Groq 等 8 种 |
 | 多解析器支持 | Native / LlamaIndex / LangChain / MinerU |
+| 统一配置 | Settings / 环境变量 / YAML / JSON |
 
 ## 支持的 LLM 模型
 
@@ -43,13 +44,41 @@
 ### 安装依赖
 
 ```bash
+# 核心依赖
 pip install openai python-dotenv
 
-# 可选依赖
-pip install agentic-rag-demo[embedding]    # 向量模型
-pip install agentic-rag-demo[vector]      # FAISS 加速
-pip install agentic-rag-demo[parser]      # 多格式解析
-pip install agentic-rag-demo[all]         # 全部依赖
+# 可选依赖 - 向量模型
+pip install sentence-transformers transformers torch
+
+# 可选依赖 - 向量数据库
+pip install faiss-cpu
+
+# 可选依赖 - 文档解析
+pip install pymupdf beautifulsoup4 python-docx
+
+# 可选依赖 - 第三方解析器
+pip install llama-index langchain langchain-community mineru
+
+# 完整安装 (需要所有依赖)
+pip install agentic-rag-demo[all]
+```
+
+### 快速使用
+
+```python
+from agentic_rag_demo import AgenticRAG, build_llm
+
+# 方式1: 本地模式
+agent = AgenticRAG.from_markdown("data/knowledge_base.md")
+response = agent.ask("什么是 RAG?")
+
+# 方式2: 使用远程 LLM
+llm = build_llm(use_openai=True, provider="openai", model="gpt-4o")
+agent = AgenticRAG.from_markdown("data/knowledge_base.md", llm=llm)
+response = agent.ask("什么是 RAG?")
+
+print(response.answer)
+print(f"引用: {response.citations}")
 ```
 
 ### LLM 运行命令
@@ -170,9 +199,12 @@ agentic-rag-demo/
 │   ├── embedding.py          # 向量嵌入模型
 │   ├── vector_index.py       # 向量索引
 │   ├── loader.py             # 文档加载与分块
-│   ├── document_parser.py    # 多格式文档解析
+│   ├── document_parser.py    # 多格式文档解析 (含 LlamaIndex/LangChain/MinerU)
+│   ├── document_parser_core.py # 内置解析器核心
 │   ├── evaluator.py          # 评估框架
 │   ├── cache.py              # 缓存机制
+│   ├── config.py             # 统一配置管理
+│   ├── cli.py                # 命令行接口
 │   └── llm.py                # LLM 接口 (多模型支持)
 ├── data/
 │   └── knowledge_base.md     # 示例知识库
@@ -230,6 +262,112 @@ CLI 参数 > .env 环境变量 > 代码默认值
 - `RAG 的评估指标有哪些?`
 - `实践建议是什么?`
 
+## 代码示例
+
+### 基础使用
+
+```python
+from agentic_rag_demo import AgenticRAG, build_llm
+
+# 创建 Agent
+agent = AgenticRAG.from_markdown("data/knowledge_base.md")
+
+# 问答
+response = agent.ask("什么是 Agentic RAG?")
+print(f"答案: {response.answer}")
+print(f"引用: {response.citations}")
+print(f"检索类型: {response.retrieval_type}")
+
+# 使用 Agent Loop 模式
+response = agent.ask("什么是 Agentic RAG?", use_agent_loop=True)
+print(f"Agent 迭代: {response.agent_state.iterations}")
+```
+
+### 完整配置示例
+
+```python
+from agentic_rag_demo import (
+    AgenticRAG,
+    Settings,
+    build_llm,
+    build_embedding_model,
+    build_reranker,
+    build_cache,
+)
+
+# 从配置创建
+settings = Settings.from_env()
+
+llm = build_llm(
+    use_openai=True,
+    provider=settings.llm.provider,
+    model=settings.llm.model,
+    max_tokens=settings.llm.max_tokens,
+    temperature=settings.llm.temperature,
+)
+
+embedding = build_embedding_model(provider=settings.embedding.provider)
+reranker = build_reranker("cross_encoder") if settings.retrieval.enable_reranker else None
+cache = build_cache(cache_type=settings.cache.cache_type) if settings.cache.enabled else None
+
+agent = AgenticRAG.from_markdown(
+    "data/knowledge_base.md",
+    llm=llm,
+    embedding_provider=settings.embedding.provider,
+    enable_reranker=settings.retrieval.enable_reranker,
+    max_iterations=settings.agent.max_iterations,
+)
+
+# 问答
+response = agent.ask("什么是 RAG?", use_agent_loop=settings.agent.use_agent_loop)
+```
+
+### 解析文档示例
+
+```python
+from agentic_rag_demo import parse_document_with, build_parser
+
+# 使用内置解析器
+chunks = parse_document_with("data/report.pdf", parser_type="native")
+
+# 使用 MinerU 解析器
+chunks = parse_document_with(
+    "data/report.pdf",
+    parser_type="mineru",
+    parse_mode="hybrid",
+    extract_tables=True,
+)
+
+# 使用 LlamaIndex 解析器
+chunks = parse_document_with(
+    "data/report.pdf",
+    parser_type="llamaindex",
+    chunk_size=512,
+)
+```
+
+### 批量评估示例
+
+```python
+from agentic_rag_demo import AgenticRAG, BatchEvaluator, Evaluator
+
+agent = AgenticRAG.from_markdown("data/knowledge_base.md")
+evaluator = BatchEvaluator(Evaluator())
+
+test_cases = [
+    {
+        "question": "什么是 RAG?",
+        "answer": "RAG 是检索增强生成技术。",
+        "retrieved_chunks": ["chunk-1", "chunk-2"],
+        "relevant_chunks": ["chunk-1"],
+        "evidence_chunks": ["RAG 是检索增强生成"],
+    },
+]
+
+results = evaluator.evaluate_batch(test_cases)
+evaluator.print_summary(results)
+```
+
 ## 测试
 
 ```bash
@@ -238,6 +376,12 @@ python3 -m pytest
 
 # 快速测试
 python3 -m pytest tests/test_demo.py -q
+
+# 演示所有功能
+python3 demo_all_features.py
+
+# 使用 CLI
+python3 main.py --help
 ```
 
 ## 扩展指南
